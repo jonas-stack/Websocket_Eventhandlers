@@ -2,6 +2,7 @@ using System.Reflection;
 using Fleck;
 using WebSocketBoilerplate;
 using WebSockets_EventHandlers;
+using WebSockets_EventHandlers.EventHandlers;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,7 +11,8 @@ builder.Services.AddOptionsWithValidateOnStart<AppOptions>().Bind(builder.Config
 builder.Services.AddSingleton<ClientConnectionsState>();
 builder.Services.AddSingleton<SecurityService>();
 builder.Services.InjectEventHandlers(Assembly.GetExecutingAssembly());
-
+builder.Services.AddSingleton<ClientWantsToSendMessageToRoomEventHandler>();
+builder.Services.AddSingleton<ClientWantsToSignInEventHandler>();
 var app = builder.Build();
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
@@ -45,5 +47,5 @@ app.Run();
 
 public class ServerSendsErrorMessageDto : BaseDto
 {
-    public string Error { get; set; }
+    public string Error { get; set; } = string.Empty;
 }

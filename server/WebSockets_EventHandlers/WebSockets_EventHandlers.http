@@ -1,6 +1,0 @@
-@WebSockets_EventHandlers_HostAddress = http://localhost:5271
-
-GET {{WebSockets_EventHandlers_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
