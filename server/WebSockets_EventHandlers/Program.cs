@@ -6,12 +6,9 @@ using WebSockets_EventHandlers;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOptionsWithValidateOnStart<AppOptions>()
-    .Bind(builder.Configuration.GetSection(nameof(AppOptions)));
-
+builder.Services.AddOptionsWithValidateOnStart<AppOptions>().Bind(builder.Configuration.GetSection(nameof(AppOptions)));
 builder.Services.AddSingleton<ClientConnectionsState>();
 builder.Services.AddSingleton<SecurityService>();
-
 builder.Services.InjectEventHandlers(Assembly.GetExecutingAssembly());
 
 var app = builder.Build();
@@ -21,11 +18,12 @@ var logger = app.Services.GetRequiredService<ILogger<Program>>();
 var server = new WebSocketServer("ws://0.0.0.0:8181");
 
 var clientConnections = app.Services.GetRequiredService<ClientConnectionsState>().ClientConnections;
-server.Start(socket =>
+
+server.Start(delegate (IWebSocketConnection socket)
 {
-    socket.OnOpen = () => clientConnections.Add(socket);
-    socket.OnClose = () => clientConnections.Remove(socket);
-    socket.OnMessage = message =>
+    socket.OnOpen = delegate { clientConnections.Add(socket); };
+    socket.OnClose = delegate { clientConnections.Remove(socket); };
+    socket.OnMessage = delegate (string message)
     {
         Task.Run(async () =>
         {
