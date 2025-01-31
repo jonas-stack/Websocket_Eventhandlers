@@ -1,44 +1,51 @@
+using System.Reflection;
+using Fleck;
+using WebSocketBoilerplate;
+using WebSockets_EventHandlers;
+
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddOptionsWithValidateOnStart<AppOptions>()
+    .Bind(builder.Configuration.GetSection(nameof(AppOptions)));
+
+builder.Services.AddSingleton<ClientConnectionsState>();
+builder.Services.AddSingleton<SecurityService>();
+
+builder.Services.InjectEventHandlers(Assembly.GetExecutingAssembly());
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-app.UseHttpsRedirection();
+var server = new WebSocketServer("ws://0.0.0.0:8181");
 
-var summaries = new[]
+var clientConnections = app.Services.GetRequiredService<ClientConnectionsState>().ClientConnections;
+server.Start(socket =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    socket.OnOpen = () => clientConnections.Add(socket);
+    socket.OnClose = () => clientConnections.Remove(socket);
+    socket.OnMessage = message =>
+    {
+        Task.Run(async () =>
+        {
+            try
+            {
+                await app.CallEventHandler(socket, message);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Error handling message: {Error}", e.Message);
+                socket.SendDto(new ServerSendsErrorMessageDto { Error = e.Message });
+            }
+        });
+    };
+});
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+public class ServerSendsErrorMessageDto : BaseDto
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    public string Error { get; set; }
 }
